@@ -1,22 +1,14 @@
 {
-  "signoff": "— always, me",
+  "signoff": "— pookie",
 
-  "fallback": "Even on the days I forget to write, I don't forget you.",
+  "fallback": "I havent written a new one yet.",
 
   "_howto": "Add a new entry to 'messages' each day. Dates are YYYY-MM-DD. If today has no entry, the most recent past one keeps showing. Order doesn't matter. Keep the commas correct — no comma after the last entry.",
 
   "messages": [
     {
       "date": "2026-07-25",
-      "text": "Good morning. I made you a place to find me every day."
+      "text": "Hi pookie bear. I love you more than anything in the whole world."
     },
     {
-      "date": "2026-07-26",
-      "text": "You were the first thing I thought about today."
-    },
-    {
-      "date": "2026-07-27",
-      "text": "Whatever today throws at you — I'm on your side."
-    }
-  ]
-}
+      
