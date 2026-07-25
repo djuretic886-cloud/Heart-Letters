@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Message checker</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:#12060d; color:#eee;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding:24px 18px calc(40px + env(safe-area-inset-bottom));
+    line-height:1.5;
+  }
+  h1 { font-size:19px; margin-bottom:4px; }
+  .sub { color:#888; font-size:13px; margin-bottom:22px; }
+  .card {
+    background:rgba(255,255,255,.05); border-radius:12px;
+    padding:16px; margin-bottom:14px;
+    border-left:3px solid #555;
+  }
+  .ok   { border-left-color:#3ddc84; }
+  .bad  { border-left-color:#ff3b5c; }
+  .warn { border-left-color:#ffb020; }
+  .card h2 { font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:#aaa; margin-bottom:8px; font-weight:600; }
+  .big { font-size:16px; }
+  .ok .big   { color:#3ddc84; }
+  .bad .big  { color:#ff6b85; }
+  .warn .big { color:#ffc75e; }
+  pre {
+    font-family:ui-monospace, Menlo, monospace; font-size:12px;
+    background:#000; border-radius:8px; padding:12px;
+    overflow-x:auto; white-space:pre; margin-top:10px; color:#bbb;
+    max-height:340px; overflow-y:auto;
+  }
+  pre .hit { background:#5c0018; color:#fff; display:block; }
+  .msg { padding:9px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:14px; }
+  .msg:last-child { border-bottom:none; }
+  .msg b { color:#ff7ea8; font-family:ui-monospace, monospace; font-size:12px; }
+  .today { color:#3ddc84; font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+  .tip { font-size:13px; color:#999; margin-top:10px; }
+  .tip b { color:#ddd; }
+  button {
+    background:#ff2d69; color:#fff; border:none; border-radius:9px;
+    padding:11px 18px; font-size:14px; font-weight:600; margin-top:6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Message checker</h1>
+<div class="sub">Tells you exactly what's wrong with messages.json.</div>
+<div id="out">Checking…</div>
+<button onclick="location.reload()">Check again</button>
+
+<script>
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function todayKey(){
+  var d=new Date(), p=function(n){return String(n).padStart(2,'0');};
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+
+function card(cls,title,body){
+  return '<div class="card '+cls+'"><h2>'+title+'</h2>'+body+'</div>';
+}
+
+function guessProblem(raw, errMsg){
+  var tips=[];
+  var opens=(raw.match(/\{/g)||[]).length, closes=(raw.match(/\}/g)||[]).length;
+  var bo=(raw.match(/\[/g)||[]).length, bc=(raw.match(/\]/g)||[]).length;
+
+  if(opens>closes) tips.push('You have <b>'+(opens-closes)+' more <code>{</code> than <code>}</code></b> — a block was never closed. The file probably needs a <code>}</code> near the end.');
+  if(closes>opens) tips.push('You have <b>'+(closes-opens)+' extra <code>}</code></b>.');
+  if(bo>bc) tips.push('Missing a closing <b><code>]</code></b> — the messages list was never closed.');
+  if(bc>bo) tips.push('Extra <b><code>]</code></b>.');
+  if(/,\s*[\}\]]/.test(raw)) tips.push('There is a <b>comma right before a <code>}</code> or <code>]</code></b>. JSON does not allow that — delete it.');
+  var q=(raw.match(/"/g)||[]).length;
+  if(q%2!==0) tips.push('Odd number of <b>double quotes</b> — you probably typed a <code>"</code> inside a message. Use &lsquo;single quotes&rsquo; in your text instead.');
+  if(!tips.length) tips.push('Check that every <code>{ }</code> block has a comma after it, except the last one.');
+  return '<div class="tip">'+tips.map(function(t){return '• '+t;}).join('<br>')+'</div>';
+}
+
+function showRaw(raw, pos){
+  var lines=raw.split('\n'), run=0, badLine=-1;
+  if(pos!=null){
+    for(var i=0;i<lines.length;i++){
+      run+=lines[i].length+1;
+      if(run>pos){ badLine=i; break; }
+    }
+  }
+  return '<pre>'+lines.map(function(l,i){
+    var n=String(i+1).padStart(3,' ')+' | '+esc(l);
+    return i===badLine ? '<span class="hit">'+n+'</span>' : n;
+  }).join('\n')+'</pre>';
+}
+
+fetch('messages.json?t='+Date.now(),{cache:'no-store'})
+ .then(function(r){
+    if(!r.ok) throw new Error('HTTP '+r.status+' — the file may not be uploaded, or the name is misspelled.');
+    return r.text();
+ })
+ .then(function(raw){
+    var out='';
+    var data;
+    try {
+      data=JSON.parse(raw);
+    } catch(e){
+      var m=/position (\d+)/.exec(e.message);
+      var pos=m?parseInt(m[1],10):null;
+      out+=card('bad','Result','<div class="big">Broken — the app is showing the backup message</div>'
+        +'<div class="tip" style="margin-top:8px">'+esc(e.message)+'</div>'
+        +guessProblem(raw,e.message));
+      out+=card('bad','Your file (problem line highlighted)', showRaw(raw,pos));
+      document.getElementById('out').innerHTML=out;
+      return;
+    }
+
+    var today=todayKey();
+    var list=(Array.isArray(data.messages)?data.messages:[]).filter(function(x){
+      return x && typeof x.date==='string' && typeof x.text==='string' && x.text.trim();
+    }).sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; });
+
+    var shown=null, why='';
+    var exact=list.filter(function(x){return x.date===today;})[0];
+    if(exact){ shown=exact.text; why='today&rsquo;s entry'; }
+    else {
+      var past=list.filter(function(x){return x.date<=today;});
+      if(past.length){ shown=past[past.length-1].text; why='most recent past entry ('+past[past.length-1].date+') — no entry for today'; }
+      else { shown=data.fallback||'Thinking about you. ♥'; why='the fallback line — nothing dated today or earlier'; }
+    }
+
+    out+=card('ok','Result','<div class="big">Valid — the file reads fine</div>');
+    out+=card(exact?'ok':'warn','Showing right now on '+today,
+      '<div style="font-size:16px;margin-bottom:8px">&ldquo;'+esc(shown)+'&rdquo;</div>'
+      +'<div class="tip">This is '+why+'.</div>');
+
+    if(!Array.isArray(data.messages))
+      out+=card('bad','Problem','<div class="big">There is no "messages" list in the file.</div>');
+
+    var bad=(Array.isArray(data.messages)?data.messages:[]).filter(function(x){
+      return !(x && typeof x.date==='string' && /^\d{4}-\d{2}-\d{2}$/.test(x.date));
+    });
+    if(bad.length)
+      out+=card('warn','Heads up','<div class="tip">'+bad.length+' entr'+(bad.length>1?'ies have':'y has')+' a missing or wrongly formatted date. Dates must look like <b>2026-08-03</b>.</div>');
+
+    out+=card('','All messages ('+list.length+')',
+      list.length
+        ? list.map(function(x){
+            return '<div class="msg"><b>'+esc(x.date)+'</b>'
+              +(x.date===today?' <span class="today">today</span>':'')
+              +'<br>'+esc(x.text)+'</div>';
+          }).join('')
+        : '<div class="tip">The list is empty.</div>');
+
+    out+=card('','Sign-off','<div class="tip">'+(data.signoff?esc(data.signoff):'(none set)')+'</div>');
+    out+=card('','Backup line','<div class="tip">'+(data.fallback?esc(data.fallback):'(none set)')+'</div>');
+
+    document.getElementById('out').innerHTML=out;
+ })
+ .catch(function(e){
+    document.getElementById('out').innerHTML=
+      card('bad','Could not load the file','<div class="tip">'+esc(e.message)+'</div>');
+ });
+</script>
+</body>
+</html>
