@@ -5,10 +5,11 @@
 
   "_howto": "Add a new entry to 'messages' each day. Dates are YYYY-MM-DD. If today has no entry, the most recent past one keeps showing. Order doesn't matter. Keep the commas correct — no comma after the last entry.",
 
-  "messages": ["date": "2026-07-25",
-      "text": "Hi pookie bear. I love you more than anything in the whole world."
-    {
-      
-    }
-    {
-      
+  "messages": [
+  {
+
+  "date": "2026-07-25",
+
+  "text": "Hi pookie, i made this to write to you while youre away. I love you more than anything in the whole world."
+
+}
